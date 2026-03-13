@@ -8,3 +8,10 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Api-keys
+.env
+
+# Data and logs
+data/
+logs/

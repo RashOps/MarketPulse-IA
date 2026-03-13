@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
 
@@ -9,19 +10,37 @@ if not os.path.exists(LOGS_DIR):
 
 def get_logger(name):
     logger = logging.getLogger(name)
+    
+    # Stop logger duplication if handlers already exist
+    if logger.hasHandlers():
+        return logger
+
     logger.setLevel(logging.DEBUG)
+    
+    # Path for log file
+    log_file = Path("logs") / "app.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Formatter
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    # Optimize formatting for readability
+    formatter = logging.Formatter(
+        '[%(asctime)s] %(levelname)-6s | %(name)s | %(filename)s:%(lineno)d | %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
 
-    # Console handler
-    ch = logging.StreamHandler()
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
+    # Console Handler (Only WARNING +)
+    console_h = logging.StreamHandler()
+    console_h.setLevel(logging.WARNING)
+    console_h.setFormatter(formatter)
 
-    # File handler
-    fh = RotatingFileHandler(os.path.join(LOGS_DIR, "app.log"), maxBytes=1024*1024*5, backupCount=5)
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
+    # File Handler (Capture everything for audit)
+    file_h = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5, encoding='utf-8')
+    file_h.setLevel(logging.DEBUG)
+    file_h.setFormatter(formatter)
+
+    logger.addHandler(console_h)
+    logger.addHandler(file_h)
+    
+    # Prevent log messages from being propagated to the root logger (avoid duplication)
+    logger.propagate = False
 
     return logger

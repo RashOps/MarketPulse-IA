@@ -4,7 +4,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 # Ensure logs directory exists
-LOGS_DIR = "logs"
+LOGS_DIR = "../../logs"
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
 
@@ -18,8 +18,12 @@ def get_logger(name):
     logger.setLevel(logging.DEBUG)
     
     # Path for log file
-    log_file = Path("logs") / "app.log"
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file = Path("../..") / "logs" / "app.log"
+    
+    # If you want to create logs directory in current directory, use:
+    # And change LOGS_DIR to "./logs"
+    # log_file = Path("logs") / "app.log"
+    # log_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Optimize formatting for readability
     formatter = logging.Formatter(

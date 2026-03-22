@@ -4,7 +4,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 # Ensure logs directory exists
-LOGS_DIR = "../../logs"
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+LOGS_DIR = BASE_DIR / "logs"
 if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
 

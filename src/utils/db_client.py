@@ -1,13 +1,18 @@
 import os
-from pymongo import MongoClient
+from pathlib import Path
+
 from dotenv import load_dotenv
-from logger import get_logger
+from pymongo import MongoClient
+from pymongo.database import Database
+
+from src.utils.logger import get_logger
 
 # Initialize logger
 logger = get_logger(__name__)
 
-# Load environment variables
-load_dotenv(dotenv_path="../../.env") # Or "../../.env.exemple" for testing
+# .env à la racine du projet (indépendant du répertoire courant)
+_env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=_env_path)
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("DB_NAME")
 
@@ -28,13 +33,7 @@ except Exception as e:
     logger.error("Failed to connect to MongoDB.")
     print(e)
 
-# Function to get the database connection
-def get_db() -> MongoClient:
-    """"Returns the MongoDB database connection."""
-
-    if db is None:
-        logger.error("Database connection is not established.")
-        raise ConnectionError("Database connection is not established.")
-
-    logger.info("Returning database connection.")
+def get_db() -> Database:
+    """Retourne l'objet Database MongoDB."""
+    logger.debug("Returning database handle.")
     return db

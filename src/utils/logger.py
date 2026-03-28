@@ -18,13 +18,7 @@ def get_logger(name):
 
     logger.setLevel(logging.DEBUG)
     
-    # Path for log file
-    log_file = Path("../..") / "logs" / "app.log"
-    
-    # If you want to create logs directory in current directory, use:
-    # And change LOGS_DIR to "./logs"
-    # log_file = Path("logs") / "app.log"
-    # log_file.parent.mkdir(parents=True, exist_ok=True)
+    log_file = LOGS_DIR / "app.log"
 
     # Optimize formatting for readability
     formatter = logging.Formatter(

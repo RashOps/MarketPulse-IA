@@ -611,6 +611,15 @@ wheels = [
 ]
 
 [[package]]
+name = "jolib"
+version = "0.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/dc/c0/85865f741fa56b3b9da357779f386fba18e3f73b3e51783bb5c7be5fb551/joLib-0.0.1.tar.gz", hash = "sha256:c151d8eda6ad46f4aeed810cf899aea513365dc71d173be0616eaf2eda3f0eaf", size = 1199, upload-time = "2021-05-11T13:07:41.846Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f6/ed/9647fc25a2fa71df6b9710809823978725d7efac7802e2deab153def9fcf/joLib-0.0.1-py3-none-any.whl", hash = "sha256:c80ddff4a54065e8ff89704e5950dc46df1e2e860c32b3ee1ad4cbe83bad289c", size = 1175, upload-time = "2021-05-11T13:07:40.178Z" },
+]
+
+[[package]]
 name = "json5"
 version = "0.13.0"
 source = { registry = "https://pypi.org/simple" }
@@ -963,6 +972,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "jolib" },
     { name = "jupyter" },
     { name = "lxml" },
     { name = "pandas" },
@@ -981,6 +991,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "fastapi", specifier = ">=0.135.1" },
     { name = "httpx", specifier = ">=0.28.1" },
+    { name = "jolib", specifier = ">=0.0.1" },
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "lxml", specifier = ">=6.0.2" },
     { name = "pandas", specifier = ">=3.0.1" },

@@ -2,6 +2,7 @@ import pandas as pd
 from typing import Optional
 from src.utils.logger import get_logger
 from src.utils.db_client import get_db
+from src.processing.features import engineer_features, scale_features
 
 logger = get_logger(__name__)
 
@@ -64,9 +65,15 @@ def load_market_data(days_back: int = 30) -> Optional[pd.DataFrame]:
         return None
 
 if __name__ == "__main__":
-    df = load_market_data()
-    if df is not None:
-        print(df.head())
-        df.info()
-        # print(df.describe())
+    df_raw = load_market_data()
+    if df_raw is not None:
+        df_engineered = engineer_features(df_raw)
+        
+        # 1. Premier passage : on entraîne et on sauvegarde (is_training=True par défaut)
+        df_final_train = scale_features(df_engineered, is_training=True)
+        
+        # 2. Simulation d'une nouvelle donnée API le lendemain :
+        # On passe is_training=False pour s'assurer que le fichier .pkl est bien utilisé
+        df_final_inference = scale_features(df_engineered, is_training=False)
+        print(df_final_inference.head())
         

@@ -2,6 +2,7 @@ import yfinance as yf
 import time
 import sys
 from pathlib import Path
+from datetime import datetime, timezone
 
 # Resolving Path issue
 # _project_root = Path(__file__).resolve().parent.parent.parent
@@ -35,6 +36,7 @@ def parse_info(ticker: str | yf.Ticker) -> dict:
         payload = {
             "ticker": ticker_info.get("symbol"),
             "company_name": ticker_info.get("longName"),
+            "timestamp": datetime.now(timezone.utc),
             "source_type": "yfinance (api)",
             "metrics": {
                 "open": ticker_info.get("open"),
@@ -88,3 +90,7 @@ def process_tickers(ticker_list: list) -> None:
         
         # Rate Limiting : Pause de 2 secondes entre chaque requête
         time.sleep(2)
+
+# Load tickets test
+ticket_list = ["NFLX", "AMZN", "NVDA", "GOOGL", "AAL", "MU", "AAPL", "META", "MSFT", "WBD"]
+process_tickers(ticket_list)

@@ -1,60 +1,56 @@
 import yfinance as yf
 import time
 import sys
-from pathlib import Path
 from datetime import datetime, timezone
 import pandas as pd
 from io import StringIO
 import requests
 import random
 
-# Resolving Path issue
-# _project_root = Path(__file__).resolve().parent.parent.parent
-# if str(_project_root) not in sys.path:
-#     sys.path.insert(0, str(_project_root))
-
 from src.utils.logger import get_logger
 from src.utils.db_client import get_db
 
-# Initialize logger
 logger = get_logger(__name__)
 
 def get_dynamic_tickers(limit: int = 50) -> list[str]:
     """
-    Récupère dynamiquement les Tickers du S&P 500 via scraping de tableau HTML.
-    Intègre StringIO pour la compatibilité Pandas 2.2+ et le ciblage CSS.
+    Dynamically retrieves S&P 500 Tickers by scraping Wikipedia.
+
+    Args:
+        limit (int): Maximum number of tickers to retrieve.
+
+    Returns:
+        list[str]: List of ticker symbols.
     """
-    logger.info("Récupération dynamique de la liste des tickers S&P 500...")
+    logger.info("Dynamically retrieving S&P 500 tickers...")
     try:
         url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
-        
+
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        
+
         response = requests.get(url, headers=headers)
         response.raise_for_status() 
-        
-        # 1. Conversion du texte brut en flux I/O (Requirement Pandas)
+
         html_stream = StringIO(response.text)
-        
-        # 2. Ciblage chirurgical : on ne veut QUE le tableau principal
+
         tables = pd.read_html(html_stream, attrs={'id': 'constituents'})
-        
+
         if not tables:
-            raise ValueError("Le tableau 'constituents' n'a pas été trouvé sur la page.")
-            
+            raise ValueError("The 'constituents' table was not found on the page.")
+
         df_sp500 = tables[0]
         tickers = df_sp500['Symbol'].tolist()
-        
-        # 3. Nettoyage vital (ex: BRK.B devient BRK-B pour yfinance)
+
+        # Clean formatting (e.g., BRK.B becomes BRK-B for yfinance)
         tickers = [str(t).replace('.', '-') for t in tickers]
-        
-        logger.info("%s tickers identifiés avec succès.", len(tickers))
+
+        logger.info("Successfully identified %s tickers.", len(tickers))
         return tickers[:limit]
-        
+
     except Exception as e:
-        logger.error("Échec de la récupération dynamique des tickers : %s", e)
+        logger.error("Failed to dynamically retrieve tickers: %s", e)
         return ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]
 
 def parse_info(ticker: str | yf.Ticker) -> dict:
@@ -114,30 +110,26 @@ def parse_info(ticker: str | yf.Ticker) -> dict:
             },
         }
 
-# Get ticket list
 def process_tickers(ticker_list: list) -> None:
     """Fetches data for a list of tickers and inserts them into MongoDB."""
     db = get_db()
-    collection = db["raw-market-data"] # Lazy creation de la collection
-    
+    collection = db["raw-market-data"] 
+
     for ticker in ticker_list:
         payload = parse_info(ticker)
-        
-        # Insertion uniquement si la récupération a réussi
+
         if payload.get("metadata", {}).get("status") == "success":
             logger.info("Inserted %s data into MongoDB.", ticker)
             collection.insert_one(payload)
         else:
             logger.warning("Skipping DB insertion for %s due to fetch error.", ticker)
-        
-        # Rate Limiting : Pause aléatoire entre 1.5 et 3.5 secondes entre chaque requête
+
+        # Rate Limiting: random pause between 1.5 and 3.5 seconds
         time.sleep(random.uniform(1.5, 3.5))
 
-# Load tickets test
 if __name__ == "__main__":
     try:
-        # On récupère automatiquement les 30 plus grosses capitalisations du moment
         dynamic_list = get_dynamic_tickers(limit=30)
         process_tickers(dynamic_list)
     except Exception as e:
-        logger.critical("Le pipeline de collecte API a échoué : %s", e)
+        logger.critical("API collection pipeline failed: %s", e)

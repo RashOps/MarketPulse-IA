@@ -4,7 +4,6 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-05998b.svg)](https://fastapi.tiangolo.com/)
 [![Package Manager](https://img.shields.io/badge/uv-managed-6366f1.svg)](https://github.com/astral-sh/uv)
 [![Database](https://img.shields.io/badge/MongoDB-Atlas-47A248.svg)](https://www.mongodb.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Real-time Market Segmentation Engine using Unsupervised Learning.**
 

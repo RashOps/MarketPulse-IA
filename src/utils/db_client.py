@@ -17,23 +17,22 @@ MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("DB_NAME")
 
 # Validate environment variables
-if MONGO_URI is None or DB_NAME is None:
-    logger.error("MONGO_URI and DB_NAME must be set in the .env file.")
-    raise ValueError("MONGO_URI and DB_NAME must be set in the .env file.")
-
-client = MongoClient(MONGO_URI)
-db = client[DB_NAME]
-
-# Test the connection
-try:
-    client.admin.command('ping')
-    logger.info("Connected to MongoDB successfully!")
-    print("Connected to MongoDB successfully!")
-except Exception as e:
-    logger.error("Failed to connect to MongoDB.")
-    print(e)
+# Variable globale privée pour stocker l'instance unique (Singleton)
+_client: MongoClient | None = None
 
 def get_db() -> Database:
-    """Retourne l'objet Database MongoDB."""
-    logger.debug("Returning database handle.")
-    return db
+    """Retourne l'objet Database MongoDB via Lazy Initialization."""
+    global _client
+    
+    # On ne crée la connexion que si elle n'existe pas encore
+    if _client is None:
+        try:
+            logger.debug("Initialisation de la connexion MongoDB...")
+            _client = MongoClient(MONGO_URI)
+            _client.admin.command('ping')
+            logger.info("Connecté à MongoDB avec succès !")
+        except Exception as e:
+            logger.critical("Échec critique de la connexion à MongoDB : %s", e)
+            raise e
+            
+    return _client[DB_NAME]

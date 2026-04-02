@@ -3,6 +3,10 @@ import time
 import sys
 from pathlib import Path
 from datetime import datetime, timezone
+import pandas as pd
+from io import StringIO
+import requests
+import random
 
 # Resolving Path issue
 # _project_root = Path(__file__).resolve().parent.parent.parent
@@ -14,6 +18,44 @@ from src.utils.db_client import get_db
 
 # Initialize logger
 logger = get_logger(__name__)
+
+def get_dynamic_tickers(limit: int = 50) -> list[str]:
+    """
+    Récupère dynamiquement les Tickers du S&P 500 via scraping de tableau HTML.
+    Intègre StringIO pour la compatibilité Pandas 2.2+ et le ciblage CSS.
+    """
+    logger.info("Récupération dynamique de la liste des tickers S&P 500...")
+    try:
+        url = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
+        
+        response = requests.get(url, headers=headers)
+        response.raise_for_status() 
+        
+        # 1. Conversion du texte brut en flux I/O (Requirement Pandas)
+        html_stream = StringIO(response.text)
+        
+        # 2. Ciblage chirurgical : on ne veut QUE le tableau principal
+        tables = pd.read_html(html_stream, attrs={'id': 'constituents'})
+        
+        if not tables:
+            raise ValueError("Le tableau 'constituents' n'a pas été trouvé sur la page.")
+            
+        df_sp500 = tables[0]
+        tickers = df_sp500['Symbol'].tolist()
+        
+        # 3. Nettoyage vital (ex: BRK.B devient BRK-B pour yfinance)
+        tickers = [str(t).replace('.', '-') for t in tickers]
+        
+        logger.info("%s tickers identifiés avec succès.", len(tickers))
+        return tickers[:limit]
+        
+    except Exception as e:
+        logger.error("Échec de la récupération dynamique des tickers : %s", e)
+        return ["AAPL", "MSFT", "NVDA", "GOOGL", "AMZN"]
 
 def parse_info(ticker: str | yf.Ticker) -> dict:
     """Build a payload from yfinance ticker info and analyst price targets."""
@@ -88,9 +130,14 @@ def process_tickers(ticker_list: list) -> None:
         else:
             logger.warning("Skipping DB insertion for %s due to fetch error.", ticker)
         
-        # Rate Limiting : Pause de 2 secondes entre chaque requête
-        time.sleep(2)
+        # Rate Limiting : Pause aléatoire entre 1.5 et 3.5 secondes entre chaque requête
+        time.sleep(random.uniform(1.5, 3.5))
 
 # Load tickets test
-ticket_list = ["NFLX", "AMZN", "NVDA", "GOOGL", "AAL", "MU", "AAPL", "META", "MSFT", "WBD"]
-process_tickers(ticket_list)
+if __name__ == "__main__":
+    try:
+        # On récupère automatiquement les 30 plus grosses capitalisations du moment
+        dynamic_list = get_dynamic_tickers(limit=30)
+        process_tickers(dynamic_list)
+    except Exception as e:
+        logger.critical("Le pipeline de collecte API a échoué : %s", e)

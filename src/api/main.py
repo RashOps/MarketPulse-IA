@@ -12,6 +12,7 @@ from src.models.pca_model import apply_pca
 from src.models.clustering import apply_clustering
 from src.models.profiling import generate_cluster_profiles, assign_business_labels
 from src.utils.db_client import get_db
+from src.api.schemas import MarketSegmentsResponse, MarketNewsResponse
 
 logger = get_logger(__name__)
 
@@ -60,15 +61,13 @@ async def get_status() -> Dict[str, str]:
     return {"status": "online", "message": "MarketPulse AI is ready."}
 
 
-@app.get("/market-segments", tags=["Intelligence"])
-async def get_market_segments() -> Dict[str, Any]:
+# Ajout du response_model pour la validation stricte
+@app.get("/market-segments", response_model=MarketSegmentsResponse, tags=["Intelligence"])
+async def get_market_segments() -> Any:
     """
     Récupère les derniers segments identifiés avec leurs caractéristiques.
     """
     try:
-        # Note : En architecture de production (High-Availability), 
-        # cette route ne devrait pas recalculer la donnée, mais faire un GET sur MongoDB.
-        # Pour le MVP, on génère le payload à la volée.
         df_raw = load_market_data()
         if df_raw is None or df_raw.empty:
             raise HTTPException(status_code=404, detail="Aucune donnée de marché disponible.")
@@ -96,6 +95,7 @@ async def get_market_segments() -> Dict[str, Any]:
             "profiles": cluster_profiles.to_dict(orient="records")
         }
         
+        # FastAPI se charge de caster ce dictionnaire vers le MarketSegmentsResponse
         return payload
 
     except Exception as e:
@@ -112,8 +112,9 @@ async def trigger_update(background_tasks: BackgroundTasks) -> Dict[str, str]:
     return {"status": "processing", "message": "Pipeline d'entraînement lancé en arrière-plan."}
 
 
-@app.get("/market-news", tags=["News Feed"])
-async def get_market_news(limit: int = 15, source: str = None) -> Dict[str, Any]:
+# Ajout du response_model
+@app.get("/market-news", response_model=MarketNewsResponse, tags=["News Feed"])
+async def get_market_news(limit: int = 15, source: str = None) -> Any:
     """
     Récupère le flux d'actualités financières depuis MongoDB.
     Permet de filtrer par source et de limiter le nombre de résultats.
@@ -122,35 +123,35 @@ async def get_market_news(limit: int = 15, source: str = None) -> Dict[str, Any]
         db = get_db()
         collection = db["market-news"]
         
-        # 1. Construction dynamique de la requête (Query Builder)
         query = {}
         if source:
-            # Ex: GET /market-news?source=Yahoo Finance
             query["source"] = source
             
-        # 2. Exécution avec tri chronologique (les plus récentes d'abord)
-        # Nécessite l'index sur "published" créé en Phase 2 pour être performant
         cursor = collection.find(query).sort("published", pymongo.DESCENDING).limit(limit)
         news_list = list(cursor)
         
-        # 3. Data Cleansing pour la sérialisation JSON
         for news in news_list:
             # Conversion du ObjectId indéchiffrable par FastAPI en string classique
             news["_id"] = str(news["_id"])
             
-            # Formatage ISO 8601 pour les dates afin que le front-end React puisse les parser facilement
             if "published" in news and news["published"]:
                 news["published"] = news["published"].isoformat()
                 
+            # Gestion de la date d'ingestion pour le schéma Pydantic
+            if "ingested_at" in news and news["ingested_at"]:
+                news["ingested_at"] = news["ingested_at"].isoformat()
+                
         logger.info(f"Serveur API : {len(news_list)} articles renvoyés.")
         
-        return {
+        payload = {
             "metadata": {
                 "count": len(news_list),
                 "filter_applied": source if source else "None"
             },
             "data": news_list
         }
+        
+        return payload
 
     except Exception as e:
         logger.error(f"Échec de la récupération des news : {e}")
@@ -162,24 +163,19 @@ def background_news_scraper(limit: int = 5) -> None:
     """
     logger.info("Démarrage du job de scraping en arrière-plan...")
     try:
-        # 1. Collecte des données via les flux RSS
         news_dict = fetch_latest_financial_news(limit_per_source=limit)
-        
-        # 2. Sauvegarde dans MongoDB Atlas
         save_news_to_db(news_dict)
-        
         logger.info("Job de scraping terminé avec succès.")
     except Exception as e:
         logger.error(f"Le job de scraping a échoué : {e}")
 
 
 @app.post("/scrape-news", tags=["Operations", "Ingestion"])
-async def trigger_news_scraping(background_tasks: BackgroundTasks, limit_per_source: int = 5) -> dict:
+async def trigger_news_scraping(background_tasks: BackgroundTasks, limit_per_source: int = 5) -> Dict[str, str]:
     """
     Déclenche le scraper de news financières à la demande.
     L'opération s'exécute en arrière-plan pour ne pas bloquer le client.
     """
-    # Ajout de la fonction à la file d'attente asynchrone de FastAPI
     background_tasks.add_task(background_news_scraper, limit_per_source)
     
     return {

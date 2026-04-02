@@ -1,13 +1,4 @@
-# Lab: dernières news financières via les flux RSS Yahoo Finance et Investing.com
 from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-# Resolving Path issue
-# _project_root = Path(__file__).resolve().parent.parent.parent
-# if str(_project_root) not in sys.path:
-#     sys.path.insert(0, str(_project_root))
 
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
@@ -38,7 +29,7 @@ def _parse_rss_items(xml_text: str, limit: int) -> list[dict[str, Any]]:
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
-        logger.exception("Échec du parse XML RSS (flux invalide ou tronqué)")
+        logger.exception("Failed to parse RSS XML (invalid or truncated feed)")
         raise
 
     rows: list[dict[str, Any]] = []
@@ -72,23 +63,23 @@ def _parse_rss_items(xml_text: str, limit: int) -> list[dict[str, Any]]:
 
 
 def fetch_rss(url: str, limit: int = 5, *, timeout: float = 25.0) -> list[dict[str, Any]]:
-    logger.debug("Requête RSS url=%s limit=%s", url, limit)
+    logger.debug("RSS Request url=%s limit=%s", url, limit)
     try:
         with httpx.Client(headers=DEFAULT_HEADERS, timeout=timeout, follow_redirects=True) as client:
             r = client.get(url)
             r.raise_for_status()
     except httpx.HTTPStatusError as e:
         logger.error(
-            "RSS HTTP %s pour url=%s",
+            "RSS HTTP %s for url=%s",
             e.response.status_code,
             url,
         )
         raise
     except httpx.RequestError as e:
-        logger.error("Erreur réseau RSS url=%s: %s", url, e)
+        logger.error("RSS Network Error url=%s: %s", url, e)
         raise
     items = _parse_rss_items(r.text, limit)
-    logger.info("RSS OK url=%s — %s article(s) parsé(s)", url, len(items))
+    logger.info("RSS OK url=%s — %s item(s) parsed", url, len(items))
     return items
 
 
@@ -109,14 +100,14 @@ def fetch_investing_news(limit: int = 5) -> list[dict[str, Any]]:
 
 
 def fetch_latest_financial_news(limit_per_source: int = 5) -> dict[str, list[dict[str, Any]]]:
-    """Récupère les `limit_per_source` dernières entrées sur chaque source."""
-    logger.info("Début fetch_latest_financial_news (limit_par_source=%s)", limit_per_source)
+    """Retrieves the latest `limit_per_source` entries from each source."""
+    logger.info("Starting fetch_latest_financial_news (limit_per_source=%s)", limit_per_source)
     out = {
         "yahoo_finance": fetch_yahoo_finance_news(limit_per_source),
         "investing": fetch_investing_news(limit_per_source),
     }
     logger.info(
-        "Fin fetch_latest_financial_news — yahoo=%s investing=%s",
+        "Finished fetch_latest_financial_news — yahoo=%s investing=%s",
         len(out["yahoo_finance"]),
         len(out["investing"]),
     )
@@ -124,7 +115,7 @@ def fetch_latest_financial_news(limit_per_source: int = 5) -> dict[str, list[dic
 
 
 def save_news_to_db(news_dict: dict[str, list[dict[str, Any]]]) -> None:
-    """Enregistre les news en base. TTL sur `ingested_at` (30 j), pas sur `published`."""
+    """Saves news to database. Applies a 30-day TTL on `ingested_at`."""
     db = get_db()
     collection = db["market-news"]
     collection.create_index(

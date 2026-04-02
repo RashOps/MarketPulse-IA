@@ -1,260 +1,120 @@
-## MarketPulse AI
+# MarketPulse AI 📈
+
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-05998b.svg)](https://fastapi.tiangolo.com/)
+[![Package Manager](https://img.shields.io/badge/uv-managed-6366f1.svg)](https://github.com/astral-sh/uv)
+[![Database](https://img.shields.io/badge/MongoDB-Atlas-47A248.svg)](https://www.mongodb.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **Real-time Market Segmentation Engine using Unsupervised Learning.**
 
-MarketPulse AI est un moteur de segmentation de marchés en temps (quasi) réel basé sur l’apprentissage non supervisé.  
-Il automatise la collecte de données de marché (API & scraping web), leur prétraitement avancé, puis applique une chaîne **Standardisation → PCA → K-Means** pour détecter des **segments et tendances émergentes**.
+MarketPulse AI is a high-performance market segmentation engine built on unsupervised learning. It automates market data collection (API & Web Scraping), performs advanced feature engineering, and applies a unified **Standardization → PCA → K-Means** pipeline to detect emerging market regimes and strategic asset clusters.
 
-Le backend est exposé via **FastAPI** afin de servir les résultats (centres de clusters, statistiques par segment, projections PCA, etc.) à un frontend type **React / Next.js** ou à tout autre consommateur d’API.
-
----
-
-### 1. Objectifs du projet
-
-- **Automatisation**
-  - Mettre en place un flux capable de récupérer des données de marché sans intervention manuelle (tâches planifiées, scripts d’ingestion).
-- **Analyse avancée**
-  - Transformer des données brutes (prix, volumes, ratios, indicateurs techniques, fondamentaux…) en **segments de marché actionnables** via clustering.
-- **Interopérabilité**
-  - Exposer une **API REST** claire (FastAPI) pour alimenter un dashboard ou un portfolio **React / Next.js** (ou tout autre client).
+The system is designed for professional environments, featuring strict typing, automated model versioning, and real-time performance monitoring.
 
 ---
 
-### 2. Stack technique
+### 1. Key Features
 
-- **Langage** : Python 3.x
-- **Backend** : FastAPI
-- **ML / Data** : scikit-learn (StandardScaler, PCA, KMeans, Silhouette Score), pandas, numpy
-- **Ingestion** : `requests` (APIs), `BeautifulSoup4` (scraping HTML), éventuellement `schedule` / `APScheduler` pour l’ordonnancement
-- **Base de données** : MongoDB Atlas (via `pymongo`) pour le stockage temporaire ou historique
-- **Logging & utilitaires** : `logging`, utilitaires custom (`logger.py`, `db_client.py`, etc.)
-
----
-
-### 3. Architecture globale (Pipeline)
-
-Le système est découpé en plusieurs couches, chacune avec une responsabilité claire.
-
-#### 3.1 Ingestion Layer (Data Engineering)
-
-- **Objectif** : récupérer les données brutes depuis différentes sources.
-- **Mécanismes** :
-  - **API publiques ou privées** (ex. marchés financiers / crypto) via `requests`.
-  - **Scraping HTML** de sites de marché via `BeautifulSoup4` lorsque l’API n’existe pas ou est limitée.
-- **Stockage** :
-  - Sauvegarde intermédiaire dans des fichiers (`data/` – CSV, JSON, parquet, etc.).
-  - Option de **stockage historique** dans MongoDB Atlas (`pymongo`) pour rejouer des analyses ou entraîner des modèles plus robustes.
-
-#### 3.2 Processing Layer (Logic)
-
-- **Nettoyage des données** :
-  - Gestion des valeurs manquantes (imputation, suppression, remplissage par médiane / moyenne / valeur constante).
-  - Gestion des outliers (winsorisation, cap, filtrage par quantiles ou z-score).
-  - Harmonisation des types, parsing de dates, tri chronologique, etc.
-- **Standardisation** :
-  - Application impérative du **Z-score** sur les variables numériques :
-    - \( x' = \frac{x - \mu}{\sigma} \)
-  - Utilisation de `StandardScaler` de scikit-learn pour garantir que les distances (Euclidienne / Manhattan) soient cohérentes pour le clustering.
-
-#### 3.3 ML Layer (Intelligence)
-
-- **PCA (Analyse en Composantes Principales)** :
-  - Objectif : réduire la dimension tout en conservant le maximum de variance expliquée.
-  - Sélection du nombre de composantes selon :
-    - **Critère de Kaiser** (valeurs propres \> 1),
-    - ou **règle du coude** sur la variance expliquée cumulée.
-  - Production de matrices :
-    - composantes principales,
-    - variance expliquée par composante,
-    - projection des observations dans l’espace PCA.
-
-- **K-Means (Clustering)** :
-  - Partitionnement en \(k\) clusters à partir des données (éventuellement projetées dans l’espace PCA).
-  - **Recherche du nombre optimal de clusters** :
-    - calcul du **Silhouette Score** pour plusieurs valeurs de \(k\),
-    - choix du \(k\) qui maximise (ou se situe dans une zone stable de) la silhouette.
-  - Sorties principales :
-    - centres de clusters,
-    - affectation cluster de chaque observation,
-    - statistiques par segment (moyennes, médianes, dispersion, etc.).
-
-#### 3.4 Serving Layer (Backend FastAPI)
-
-- Exposition d’endpoints REST permettant à un frontend ou à des scripts de consommer l’intelligence produite :
-  - récupération des **centres de clusters** ;
-  - récupération des **statistiques agrégées par segment** ;
-  - accès aux **paramètres du modèle** (nombre de composantes PCA, \(k\), scores de silhouette, etc.) ;
-  - éventuellement déclenchement manuel d’une **nouvelle exécution du pipeline**.
+- **Automated Ingestion**: Dynamic ticker discovery (S&P 500) and multi-source financial news collection.
+- **Unified ML Pipeline**: Encapsulated Scikit-Learn pipeline ensuring strict parity between training and inference.
+- **Dynamic Hyper-parameter Tuning**: Automatic selection of the optimal number of clusters ($k$) based on Silhouette scores.
+- **Business Intelligence**: Automated cluster profiling and strategic labeling for human-readable insights.
+- **Monitoring & Observability**: Real-time tracking of ML metrics (explained variance, silhouette) persisted in MongoDB.
 
 ---
 
-### 4. Arborescence du projet
+### 2. Technical Stack
 
-Arborescence indicative (peut évoluer avec le développement) :
+- **Runtime**: [Bun](https://bun.sh/) (Tooling) & [Python 3.12+](https://www.python.org/)
+- **Package Manager**: [uv](https://github.com/astral-sh/uv) (Fast, reliable dependency management)
+- **Backend Framework**: FastAPI (Pydantic v2)
+- **ML / Data Science**: 
+  - `scikit-learn` (StandardScaler, PCA, KMeans)
+  - `pandas`, `numpy` (Advanced data manipulation)
+- **Infrastructure**:
+  - **Database**: MongoDB Atlas (Storage of raw data, news, and ML metrics)
+  - **Configuration**: `pydantic-settings` (Environment-based centralized config)
+- **Scraping**: `BeautifulSoup4`, `httpx`, `yfinance`
+
+---
+
+### 3. Architecture & Project Structure
+
+The codebase follows a modular architecture aligned with Senior Data Science standards.
 
 ```bash
-marketpulse-ai/
-├── data/               # Stockage local temporaire (CSV/JSON)
-├── logs/               # Fichiers .log générés par le système
+MarketPulse_AI/
+├── artifacts/          # Versioned ML models (.pkl)
+├── logs/               # Application & Audit logs
 ├── src/
-│   ├── ingestion/      # Collecte : scraper.py, api_collector.py
-│   ├── processing/     # Logique : cleaner.py, features.py
-│   ├── models/         # IA : pca_model.py, clustering.py
-│   ├── api/            # Backend : main.py, schemas.py
-│   └── utils/          # Helpers : logger.py, db_client.py
-├── .env                # Secrets (API Keys, MongoDB URI)
-├── .gitignore          # Exclure .env, logs/ et data/
-├── requirements.txt    # Dépendances Python
-└── README.md           # Documentation du projet
+│   ├── api/            # FastAPI layer (Routes, Pydantic schemas)
+│   ├── config.py       # Centralized settings & environment management
+│   ├── ingestion/      # Data acquisition (Yahoo Finance, RSS Scrapers)
+│   ├── models/         # ML Logic (Unified Pipeline, Business Profiling)
+│   ├── processing/     # Data cleaning & Feature engineering
+│   └── utils/          # Core utilities (Logger, DB Client, Custom Exceptions)
+├── pyproject.toml      # uv-managed dependencies
+└── README.md           # This documentation
 ```
+
+#### Unified Pipeline Detail
+Unlike traditional prototypes, MarketPulse AI uses a single `sklearn.pipeline.Pipeline` object. This prevents **Data Leakage** by ensuring that the `StandardScaler` and `PCA` parameters used during training are exactly the same during real-time inference.
 
 ---
 
-### 5. Installation & démarrage
+### 4. Installation & Setup
 
-#### 5.1 Prérequis
+#### 4.1 Prerequisites
+- Python 3.12 or higher.
+- `uv` installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`).
+- A running MongoDB instance (Local or Atlas).
 
-- Python 3.11+ (recommandé)
-- Accès à une base **MongoDB Atlas** (URI dans `.env`)
-- Accès internet pour interroger les APIs / sites de marché
-
-#### 5.2 Cloner le dépôt
-
+#### 4.2 Clone & Install
 ```bash
-git clone <URL_DU_DEPOT>
+git clone <repository_url>
 cd MarketPulse_AI
+uv sync
 ```
 
-#### 5.3 Environnement virtuel
+#### 4.3 Environment Configuration
+Create a `.env` file in the root directory:
+```env
+MONGO_URI="mongodb+srv://user:pass@cluster.mongodb.net/"
+DB_NAME="marketpulse"
+CORS_ORIGINS='["http://localhost:3000"]'
+```
 
+#### 4.4 Run the API
 ```bash
-python -m venv .venv
-source .venv/bin/activate      # macOS / Linux
-.\.venv\Scripts\activate       # Windows (PowerShell)
+uv run uvicorn src.api.main:app --reload
 ```
-
-#### 5.4 Installation des dépendances
-
-```bash
-pip install -r requirements.txt
-```
-
-#### 5.5 Configuration des variables d’environnement
-
-Créer un fichier `.env` à la racine du projet avec par exemple :
-
-```bash
-MONGODB_URI="mongodb+srv://..."
-API_KEY_MARKET_DATA="..."
-ENV="dev"
-```
-
-#### 5.6 Lancer l’API FastAPI
-
-Depuis la racine du projet :
-
-```bash
-uvicorn src.api.main:app --reload
-```
-
-L’API sera disponible sur `http://127.0.0.1:8000` et la documentation interactive sur `http://127.0.0.1:8000/docs`.
+API Documentation available at: `http://127.0.0.1:8000/docs`
 
 ---
 
-### 6. Fonctionnement du pipeline
+### 5. API Endpoints (Highlights)
 
-#### 6.1 Étapes principales
-
-1. **Ingestion**
-   - Appel d’APIs / scraping pour récupérer des données brutes (tickers, prix, volume, indicateurs, etc.).
-   - Sauvegarde dans `data/` ou directement dans MongoDB.
-2. **Prétraitement**
-   - Nettoyage, gestion des valeurs manquantes, outliers, filtrage des variables inutiles.
-   - Standardisation **Z-score** via `StandardScaler`.
-3. **PCA**
-   - Calcul des composantes principales sur les variables standardisées.
-   - Sélection du nombre de composantes selon Kaiser / coude.
-4. **Clustering K-Means**
-   - Test de plusieurs \(k\) (par ex. 2 à 10).
-   - Calcul du **Silhouette Score** pour chaque \(k\), choix du meilleur.
-   - Entrainement du modèle K-Means final.
-5. **Serving**
-   - Sauvegarde des artefacts importants (modèles, paramètres, stats) dans MongoDB / fichiers.
-   - Exposition des résultats via FastAPI.
-
-#### 6.2 Exécution manuelle
-
-Selon l’implémentation, le pipeline pourra être :
-
-- déclenché par une **commande CLI** (ex. `python -m src.pipeline.run`), ou
-- orchestré par des **jobs planifiés** (cron, GitHub Actions, scheduler externe), ou
-- déclenché via un **endpoint FastAPI** (ex. `/pipeline/run` en `POST`).  
-
-Les détails exacts seront documentés dans les modules correspondants (`ingestion`, `processing`, `models`).  
+- **`GET /market-segments`**: Retrieves real-time asset clustering with business labels and PCA projections.
+- **`POST /trigger-update`**: Forces a background retraining of the ML pipeline with new data.
+- **`GET /monitoring/latest-metrics`**: Returns the health status of the latest model (Silhouette score, PCA variance).
+- **`GET /market-news`**: Fetches the latest financial news feed (Yahoo Finance / Investing.com).
 
 ---
 
-### 7. API FastAPI (exemples d’endpoints)
+### 6. Roadmap
 
-> Les chemins précis peuvent évoluer, mais l’idée est d’exposer les briques suivantes.
-
-- **`GET /health`**
-  - Vérifie l’état du service (ping, connexion DB, version).
-
-- **`GET /clusters/centers`**
-  - Retourne les centres des clusters K-Means dans l’espace des features (ou PCA).
-
-- **`GET /clusters/stats`**
-  - Retourne des statistiques agrégées par cluster (moyenne des features, taille du cluster, etc.).
-
-- **`GET /pca/explained-variance`**
-  - Donne la variance expliquée par composante + variance cumulée.
-
-- **`POST /pipeline/run`** (optionnel)
-  - Force l’exécution d’un pipeline complet d’ingestion → preprocessing → PCA → K-Means.
-
-Chaque endpoint sera documenté dans `src/api/schemas.py` (Pydantic) et visible via la doc Swagger (`/docs`).  
+- [x] **v0.1**: Initial prototype and API.
+- [x] **v0.2**: Unified Pipeline refactoring and Model Versioning.
+- [x] **v0.3**: ML Metrics persistence and Custom Error Handling.
+- [ ] **v0.4**: Integration with a Next.js / TailwindCSS Dashboard.
+- [ ] **v0.5**: Advanced Anomaly Detection using Isolation Forests.
 
 ---
 
-### 8. Intégration avec un frontend React / Next.js
+### 7. Development Standards
 
-Le projet est pensé pour être consommé par un frontend moderne :
-
-- **Consommation REST** depuis un dashboard Next.js / React :
-  - visualisation des clusters sur des scatter plots (PCA 2D / 3D),
-  - affichage de fiches segments (profils moyens, liste des actifs par segment, etc.),
-  - filtres dynamiques (par période, classe d’actifs, liquidité…).
-- L’API FastAPI renvoie des **JSON structurés** pour faciliter l’intégration avec des librairies comme Recharts, Victory, D3, etc.
-
----
-
-### 9. Roadmap (indicative)
-
-- **v0.1 – Prototype local**
-  - Ingestion simple (une ou deux sources de données).
-  - Preprocessing de base + PCA + K-Means.
-  - Exposition minimale via FastAPI (`/health`, `/clusters/centers`). 
-- **v0.2 – Stabilisation & métriques**
-  - Amélioration du nettoyage, gestion robuste des valeurs manquantes / outliers.
-  - Mise en place systématique du Silhouette Score + logs détaillés.
-  - Stockage des modèles et résultats dans MongoDB.
-- **v0.3 – Intégration front**
-  - Ajout d’endpoints dédiés pour dashboard React/Next.js.
-  - Documentation API renforcée (OpenAPI).
-  - Premiers graphiques de visualisation côté frontend.
-
----
-
-### 10. Contribution & bonnes pratiques
-
-- **Structure** : respecter l’architecture des dossiers (`ingestion`, `processing`, `models`, `api`, `utils`).
-- **Qualité de code** :
-  - préférer des fonctions pures testables,
-  - typer les fonctions (type hints),
-  - ajouter des tests unitaires pour les briques critiques (standardisation, PCA, choix de \(k\), etc.).
-- **Sécurité** :
-  - ne jamais committer le fichier `.env`,
-  - vérifier que les logs ne contiennent pas de secrets (API keys, URI complètes…).
-
----
+- **Typing**: Strict type hints enforced throughout the project.
+- **Documentation**: All docstrings follow the **Google-style** in English.
+- **Logging**: Rotating file logs for production auditability.
+- **ROI Driven**: Every technical decision is linked to data reliability and business scalability.

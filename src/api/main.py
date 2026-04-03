@@ -9,10 +9,11 @@ from src.utils.logger import get_logger
 from src.processing.cleaner import load_market_data
 from src.processing.features import engineer_features
 from src.ingestion.scraper import fetch_latest_financial_news, save_news_to_db
+from src.ingestion.api_collector import get_dynamic_tickers, process_tickers
 from src.models.pipeline import model_engine
 from src.models.profiling import generate_cluster_profiles, assign_business_labels
 from src.utils.db_client import get_db
-from src.api.schemas import MarketSegmentsResponse, MarketNewsResponse
+from src.api.schemas import MarketSegmentsResponse, MarketNewsResponse, DataInventory, ModelHistoryResponse, SystemConfig
 from src.utils.exceptions import handle_marketpulse_exception, MarketPulseError
 
 logger = get_logger(__name__)
@@ -179,74 +180,84 @@ async def trigger_news_scraping(background_tasks: BackgroundTasks, limit_per_sou
         "message": f"Scraping of {limit_per_source} articles per source launched in background."
     }
 
-@app.post("/trigger-update", tags=["Operations"])
-async def trigger_update(background_tasks: BackgroundTasks) -> Dict[str, str]:
-    """
-    Forces an asynchronous data collection and model retraining.
-    """
-    background_tasks.add_task(run_full_pipeline)
-    return {"status": "processing", "message": "Training pipeline launched in background."}
+# --- NEW OPS ENDPOINTS ---
 
-@app.get("/market-news", response_model=MarketNewsResponse, tags=["News Feed"])
-async def get_market_news(limit: int = 15, source: Optional[str] = None) -> Any:
+@app.get("/data/inventory", response_model=DataInventory, tags=["Operations"])
+async def get_data_inventory() -> Any:
     """
-    Retrieves the financial news feed from MongoDB.
-    Allows filtering by source and limiting the number of results.
+    Returns statistics about the raw market data collection.
     """
     try:
         db = get_db()
-        collection = db["market-news"]
+        collection = db["raw-market-data"]
+        total = collection.count_documents({})
+        last_doc = collection.find_one(sort=[("timestamp", pymongo.DESCENDING)])
         
-        query = {}
-        if source:
-            query["source"] = source
-            
-        cursor = collection.find(query).sort("published", pymongo.DESCENDING).limit(limit)
-        news_list = list(cursor)
-        
-        for news in news_list:
-            news["_id"] = str(news["_id"])
-            if "published" in news and news["published"]:
-                news["published"] = news["published"].isoformat()
-            if "ingested_at" in news and news["ingested_at"]:
-                news["ingested_at"] = news["ingested_at"].isoformat()
-                
-        logger.info(f"API Server: Returned {len(news_list)} articles.")
-        
-        payload = {
-            "metadata": {
-                "count": len(news_list),
-                "filter_applied": source if source else "None"
-            },
-            "data": news_list
+        return {
+            "total_raw_records": total,
+            "latest_ingestion_date": last_doc["timestamp"].isoformat() if last_doc else None,
+            "collection_name": "raw-market-data"
         }
-        
-        return payload
-
     except Exception as e:
-        logger.error(f"Failed to retrieve news: {e}")
-        raise HTTPException(status_code=500, detail="Internal database error.")
+        logger.error(f"Failed to inventory DB: {e}")
+        raise HTTPException(status_code=500, detail="Database inventory failed.")
 
-def background_news_scraper(limit: int = 5) -> None:
+@app.get("/monitoring/history", response_model=ModelHistoryResponse, tags=["Operations"])
+async def get_model_history() -> Any:
     """
-    Worker function that executes actual scraping outside the main API thread.
+    Retrieves history of model metrics for performance tracking.
     """
-    logger.info("Starting background scraping job...")
     try:
-        news_dict = fetch_latest_financial_news(limit_per_source=limit)
-        save_news_to_db(news_dict)
-        logger.info("Scraping job completed successfully.")
+        db = get_db()
+        cursor = db["model-metrics"].find().sort("timestamp", pymongo.DESCENDING).limit(50)
+        history_list = []
+        for doc in cursor:
+            history_list.append({
+                "version": doc.get("version", "unknown"),
+                "timestamp": doc["timestamp"].isoformat(),
+                "silhouette_score": doc.get("results", {}).get("silhouette_score", 0),
+                "optimal_k": doc.get("results", {}).get("optimal_k", 0)
+            })
+        
+        return {
+            "total_runs": len(history_list),
+            "history": history_list
+        }
     except Exception as e:
-        logger.error(f"Scraping job failed: {e}")
+        logger.error(f"Failed to fetch model history: {e}")
+        raise HTTPException(status_code=500, detail="History fetch failed.")
 
-@app.post("/scrape-news", tags=["Operations", "Ingestion"])
-async def trigger_news_scraping(background_tasks: BackgroundTasks, limit_per_source: int = 5) -> Dict[str, str]:
+@app.get("/config", response_model=SystemConfig, tags=["Health"])
+async def get_system_config() -> Any:
     """
-    Triggers the financial news scraper on demand.
-    Runs in the background.
+    Exposes the engine configuration.
     """
-    background_tasks.add_task(background_news_scraper, limit_per_source)
+    return {
+        "pca_components": settings.pca_components,
+        "max_clusters": settings.max_clusters,
+        "db_name": settings.db_name,
+        "artifacts_dir": str(settings.artifacts_dir)
+    }
+
+async def background_ticker_scraper(limit: int = 30) -> None:
+    """
+    Worker function for yFinance ticker scraping.
+    """
+    logger.info("Starting background ticker scraping job...")
+    try:
+        tickers = get_dynamic_tickers(limit=limit)
+        process_tickers(tickers)
+        logger.info("Ticker scraping job completed successfully.")
+    except Exception as e:
+        logger.error(f"Ticker scraping job failed: {e}")
+
+@app.post("/scrape-tickers", tags=["Operations", "Ingestion"])
+async def trigger_ticker_scraping(background_tasks: BackgroundTasks, limit: int = 30) -> Dict[str, str]:
+    """
+    Triggers yFinance data collection for S&P 500 tickers.
+    """
+    background_tasks.add_task(background_ticker_scraper, limit)
     return {
         "status": "processing", 
-        "message": f"Scraping of {limit_per_source} articles per source launched in background."
-    }
+        "message": f"Scraping of {limit} tickers from yFinance launched in background."
+    }

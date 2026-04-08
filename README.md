@@ -106,7 +106,7 @@ API Documentation available at: `http://127.0.0.1:8000/docs`
 - [x] **v0.1**: Initial prototype and API.
 - [x] **v0.2**: Unified Pipeline refactoring and Model Versioning.
 - [x] **v0.3**: ML Metrics persistence and Custom Error Handling.
-- [ ] **v0.4**: Integration with a Next.js / TailwindCSS Dashboard.
+- [x] **v0.4**: Integration with a Next.js / TailwindCSS Dashboard.
 - [ ] **v0.5**: Advanced Anomaly Detection using Isolation Forests.
 
 ---

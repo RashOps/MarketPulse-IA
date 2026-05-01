@@ -11,6 +11,8 @@ MarketPulse AI is a high-performance market segmentation engine built on unsuper
 
 The system is designed for professional environments, featuring strict typing, automated model versioning, and real-time performance monitoring.
 
+[🚀 Voir la démo](https://www.rayhan-touboui.tech/decrypt-demos/marketpulse-ai)
+
 ---
 
 ### 1. Key Features

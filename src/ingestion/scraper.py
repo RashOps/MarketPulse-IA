@@ -131,8 +131,7 @@ def save_news_to_db(news_dict: dict[str, list[dict[str, Any]]]) -> None:
             docs = [{**article, "ingested_at": ingested_at} for article in articles]
             logger.info("Inserted %s articles from %s into MongoDB.", len(docs), source)
             collection.insert_many(docs)
-
-
+            
 if __name__ == "__main__":
     try:
         news_by_source = fetch_latest_financial_news(limit_per_source=5)

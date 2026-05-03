@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, status
+from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from typing import Dict, Any, Optional
@@ -48,6 +49,11 @@ def run_full_pipeline() -> None:
         logger.info("ML pipeline executed successfully.")
     except Exception as e:
         logger.error(f"Critical error during pipeline execution: {e}")
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """Redirige automatiquement vers la documentation Swagger"""
+    return RedirectResponse(url="/docs")
 
 @app.get("/status", tags=["Health"])
 async def get_status() -> Dict[str, str]:
@@ -260,4 +266,4 @@ async def trigger_ticker_scraping(background_tasks: BackgroundTasks, limit: int 
     return {
         "status": "processing", 
         "message": f"Scraping of {limit} tickers from yFinance launched in background."
-    }
+    }

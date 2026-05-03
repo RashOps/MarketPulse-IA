@@ -1,0 +1,142 @@
+name: Daily Data Quality Check
+
+on:
+  schedule:
+    - cron: '15 16 * * *'  # Avant la collection
+  workflow_dispatch:
+
+jobs:
+  data-quality:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Validate Data Schema
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          uv run python << 'EOF'
+          import sys
+          from pymongo import MongoClient
+          from datetime import datetime
+          
+          # Configuration
+          MONGO_URI = "${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}"
+          DB_NAME = "marketpulse"
+          
+          try:
+              client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+              db = client[DB_NAME]
+              
+              # Vérifier collections existantes
+              collections = db.list_collection_names()
+              print(f"📦 Collections trouvées: {collections}")
+              
+              if 'raw-market-data' not in collections:
+                  print("⚠ Collection 'raw-market-data' vide - collecte nécessaire")
+              else:
+                  # Analyser raw-market-data
+                  raw_data = db['raw-market-data']
+                  doc_count = raw_data.count_documents({})
+                  print(f"📊 Documents dans raw-market-data: {doc_count}")
+                  
+                  if doc_count > 0:
+                      sample = raw_data.find_one()
+                      required_fields = ['symbol', 'price', 'date']
+                      missing = [f for f in required_fields if f not in sample]
+                      
+                      if missing:
+                          print(f"❌ Champs manquants: {missing}")
+                          sys.exit(1)
+                      else:
+                          print("✓ Schéma des données valide")
+              
+              # Analyser market-news
+              if 'market-news' in collections:
+                  news_count = db['market-news'].count_documents({})
+                  print(f"📰 Articles d'actualité: {news_count}")
+              
+              # Analyser métriques du modèle
+              if 'metrics' in collections:
+                  latest_metrics = db['metrics'].find_one(sort=[('_id', -1)])
+                  if latest_metrics:
+                      print(f"📈 Dernière mise à jour des métriques: {latest_metrics.get('_id')}")
+                      print(f"   Silhouette Score: {latest_metrics.get('silhouette_score', 'N/A')}")
+                      print(f"   Clusters détectés: {latest_metrics.get('n_clusters', 'N/A')}")
+              
+              print("\n✅ Validation des données réussie!")
+              
+          except Exception as e:
+              print(f"❌ Erreur lors de la validation: {str(e)}")
+              sys.exit(1)
+          EOF
+      
+      - name: Check Data Freshness
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          uv run python << 'EOF'
+          from pymongo import MongoClient
+          from datetime import datetime, timedelta
+          
+          MONGO_URI = "${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}"
+          DB_NAME = "marketpulse"
+          
+          try:
+              client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+              db = client[DB_NAME]
+              
+              if 'raw-market-data' in db.list_collection_names():
+                  latest = db['raw-market-data'].find_one(sort=[('date', -1)])
+                  if latest:
+                      latest_date = latest.get('date')
+                      if isinstance(latest_date, str):
+                          latest_date = datetime.fromisoformat(latest_date)
+                      
+                      age = datetime.utcnow() - latest_date
+                      hours_old = age.total_seconds() / 3600
+                      
+                      print(f"📅 Données les plus récentes: {hours_old:.1f} heures")
+                      
+                      if hours_old > 48:
+                          print("⚠ Attention: Données plus vieilles que 48h")
+                      elif hours_old > 24:
+                          print("⚠ Attention: Données plus vieilles que 24h")
+                      else:
+                          print("✓ Données récentes (< 24h)")
+          
+          except Exception as e:
+              print(f"⚠ Impossible de vérifier la fraîcheur: {str(e)}")
+          EOF
+      
+      - name: Generate Quality Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: data-quality-report-${{ github.run_number }}
+          path: logs/
+          retention-days: 7

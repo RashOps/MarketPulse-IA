@@ -1,0 +1,100 @@
+name: Daily API Health Check
+
+on:
+  schedule:
+    - cron: '30 16 * * *'  # 30min après la collection
+  workflow_dispatch:
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Start API Server
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          uv run uvicorn src.api.main:app --host 0.0.0.0 --port 8000 &
+          echo $! > server.pid
+          sleep 4
+          echo "API server started"
+      
+      - name: Health Check (Status Endpoint)
+        run: |
+          echo "Testing /status endpoint..."
+          response=$(curl -s -w "\n%{http_code}" http://localhost:8000/status)
+          status_code=$(echo "$response" | tail -n 1)
+          
+          if [ "$status_code" != "200" ]; then
+            echo "❌ Status check failed with code $status_code"
+            exit 1
+          fi
+          echo "✓ Status endpoint healthy"
+      
+      - name: Test Market Segments Endpoint
+        run: |
+          echo "Testing /market-segments endpoint..."
+          response=$(curl -s -w "\n%{http_code}" http://localhost:8000/market-segments)
+          status_code=$(echo "$response" | tail -n 1)
+          body=$(echo "$response" | head -n -1)
+          
+          if [ "$status_code" != "200" ]; then
+            echo "❌ Market segments failed with code $status_code"
+            exit 1
+          fi
+          
+          # Vérifier que la réponse contient des segments
+          if echo "$body" | grep -q '"segments"'; then
+            echo "✓ Market segments endpoint working"
+          else
+            echo "⚠ Market segments response might be incomplete"
+          fi
+      
+      - name: Test Market News Endpoint
+        run: |
+          echo "Testing /market-news endpoint..."
+          curl -s -f http://localhost:8000/market-news?limit=5 > /dev/null
+          echo "✓ Market news endpoint working"
+      
+      - name: Test Monitoring Metrics Endpoint
+        run: |
+          echo "Testing /monitoring/latest-metrics endpoint..."
+          curl -s -f http://localhost:8000/monitoring/latest-metrics > /dev/null
+          echo "✓ Monitoring metrics endpoint working"
+      
+      - name: Stop API Server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then
+            kill $(cat server.pid) || true
+          fi
+      
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ API health check failed"
+          exit 1

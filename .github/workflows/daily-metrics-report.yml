@@ -1,0 +1,184 @@
+name: Daily Model Metrics Report
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # Après l'entraînement
+  workflow_dispatch:
+
+jobs:
+  metrics-report:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Generate Metrics Report
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          uv run python << 'EOF'
+          import json
+          from pymongo import MongoClient
+          from datetime import datetime
+          
+          MONGO_URI = "${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}"
+          DB_NAME = "marketpulse"
+          
+          try:
+              client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+              db = client[DB_NAME]
+              
+              # Récupérer les 5 dernières métriques
+              metrics_col = db['metrics']
+              latest_metrics = list(metrics_col.find().sort([('_id', -1)]).limit(5))
+              
+              if not latest_metrics:
+                  print("⚠ Aucune métrique trouvée - le modèle doit être entraîné")
+              else:
+                  print("\n" + "="*60)
+                  print("📊 RAPPORT DES MÉTRIQUES DU MODÈLE")
+                  print("="*60 + "\n")
+                  
+                  for i, metric in enumerate(latest_metrics, 1):
+                      timestamp = metric.get('_id')
+                      print(f"Run #{i} - {timestamp}")
+                      print(f"  Silhouette Score: {metric.get('silhouette_score', 'N/A'):.4f}")
+                      print(f"  Inertie: {metric.get('inertia', 'N/A'):.2f}")
+                      print(f"  Clusters détectés: {metric.get('n_clusters', 'N/A')}")
+                      print(f"  Nombre de symboles: {metric.get('n_samples', 'N/A')}")
+                      print()
+                  
+                  # Analyse de tendance
+                  latest = latest_metrics[0]
+                  silhouette_latest = latest.get('silhouette_score', 0)
+                  
+                  if len(latest_metrics) > 1:
+                      silhouette_prev = latest_metrics[1].get('silhouette_score', 0)
+                      change = silhouette_latest - silhouette_prev
+                      direction = "📈" if change > 0 else "📉" if change < 0 else "➡"
+                      print(f"{direction} Tendance Silhouette: {change:+.4f}")
+                  
+                  print("\n" + "="*60)
+                  
+                  # Sauvegarder le rapport
+                  with open('metrics_report.json', 'w') as f:
+                      json.dump({
+                          'timestamp': datetime.utcnow().isoformat(),
+                          'latest_metrics': {k: v for k, v in latest.items() if k != '_id'},
+                          'historical_metrics': [
+                              {k: v for k, v in m.items() if k != '_id'} 
+                              for m in latest_metrics[:5]
+                          ]
+                      }, f, indent=2, default=str)
+          
+          except Exception as e:
+              print(f"❌ Erreur lors de la génération du rapport: {str(e)}")
+              exit(1)
+          EOF
+      
+      - name: Model Performance Check
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          uv run python << 'EOF'
+          from pymongo import MongoClient
+          
+          MONGO_URI = "${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}"
+          DB_NAME = "marketpulse"
+          
+          try:
+              client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+              db = client[DB_NAME]
+              
+              metrics_col = db['metrics']
+              latest = metrics_col.find_one(sort=[('_id', -1)])
+              
+              if not latest:
+                  print("⚠ Aucune métrique de performance trouvée")
+                  exit(0)
+              
+              silhouette = latest.get('silhouette_score', 0)
+              inertia = latest.get('inertia', float('inf'))
+              
+              # Seuils de qualité
+              print("\n🔍 Vérification de qualité du modèle:\n")
+              
+              # Silhouette score: [-1, 1], plus élevé = mieux
+              if silhouette > 0.5:
+                  print(f"✅ Silhouette Score: {silhouette:.4f} (excellent)")
+              elif silhouette > 0.3:
+                  print(f"⚠ Silhouette Score: {silhouette:.4f} (acceptable)")
+              else:
+                  print(f"❌ Silhouette Score: {silhouette:.4f} (faible qualité)")
+              
+              # Nombre de clusters
+              n_clusters = latest.get('n_clusters', 0)
+              if 2 <= n_clusters <= 8:
+                  print(f"✅ Nombre de clusters: {n_clusters} (valide)")
+              else:
+                  print(f"⚠ Nombre de clusters: {n_clusters} (peut être optimal)")
+              
+              print()
+          
+          except Exception as e:
+              print(f"⚠ Erreur lors de la vérification: {str(e)}")
+          EOF
+      
+      - name: Upload Metrics Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metrics-report-${{ github.run_number }}
+          path: |
+            metrics_report.json
+            logs/
+          retention-days: 90
+      
+      - name: Comment on PR with Metrics
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('metrics_report.json')) {
+              const report = JSON.parse(fs.readFileSync('metrics_report.json', 'utf8'));
+              const metrics = report.latest_metrics;
+              
+              const comment = `## 📊 Model Performance Metrics
+              
+              - **Silhouette Score**: ${metrics.silhouette_score?.toFixed(4) || 'N/A'}
+              - **Inertia**: ${metrics.inertia?.toFixed(2) || 'N/A'}
+              - **Clusters**: ${metrics.n_clusters || 'N/A'}
+              
+              Generated at: ${new Date(report.timestamp).toLocaleString()}`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }

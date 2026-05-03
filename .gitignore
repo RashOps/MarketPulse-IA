@@ -11,6 +11,7 @@ wheels/
 
 # Api-keys
 .env
+.env.hf
 
 # Data and logs
 data/

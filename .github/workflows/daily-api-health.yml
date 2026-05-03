@@ -8,6 +8,8 @@ on:
 jobs:
   api-tests:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
     services:
       mongodb:
         image: mongo:latest
@@ -32,6 +34,16 @@ jobs:
       
       - name: Install dependencies
         run: uv sync
+      
+      - name: Seed Data and Train Model
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          echo "Seeding minimal data for health check..."
+          uv run python -m src.ingestion.api_collector
+          echo "Training minimal model..."
+          uv run python -m src.processing.cleaner
       
       - name: Start API Server
         env:

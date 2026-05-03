@@ -8,6 +8,8 @@ on:
 jobs:
   data-quality:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: .
     services:
       mongodb:
         image: mongo:latest
@@ -65,8 +67,8 @@ jobs:
                   
                   if doc_count > 0:
                       sample = raw_data.find_one()
-                      required_fields = ['symbol', 'price', 'date']
-                      missing = [f for f in required_fields if f not in sample]
+                      required_fields = ['ticker', 'metrics.current_price', 'timestamp']
+                      missing = [f for f in required_fields if (f not in sample) and not ('.' in f and sample.get(f.split('.')[0], {}).get(f.split('.')[1]) is not None)]
                       
                       if missing:
                           print(f"❌ Champs manquants: {missing}")

@@ -22,7 +22,8 @@
     ENV PYTHONDONTWRITEBYTECODE=1 \
         PYTHONUNBUFFERED=1 \
         PYTHONPATH="/app" \
-        PATH="/app/.venv/bin:$PATH"
+        PATH="/app/.venv/bin:$PATH" \
+        PORT=7860
     
     WORKDIR /app
     
@@ -38,12 +39,12 @@
     COPY src/ /app/src/
     
     # Create specific directories and strictly assign ownership to the appuser
-    RUN mkdir -p /app/artifacts /app/logs && \
+    RUN mkdir -p /app/artifacts /app/logs /app/data && \
         chown -R appuser:appgroup /app
     
     # Drop root privileges
     USER appuser
     
-    EXPOSE 8000
+    EXPOSE 7860
     
-    CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -1,4 +1,7 @@
+version: '3.9'
+
 services:
+  # Service principal MarketPulse API - Compatible local
   marketpulse-api:
     build: .
     container_name: marketpulse-engine
@@ -6,13 +9,51 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - PORT=8000
+      - MONGO_URI=${MONGO_URI}
+      - DB_NAME=${DB_NAME}
     volumes:
       - ./artifacts:/app/artifacts
       - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - marketpulse-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s # Donne le temps aux modèles ML de se charger en RAM
+
+  # Service MongoDB local pour développement
+  mongodb:
+    image: mongo:7.0
+    container_name: marketpulse-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: marketpulse
+    volumes:
+      - mongodb-data:/data/db
+    restart: unless-stopped
+    networks:
+      - marketpulse-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  mongodb-data:
+    driver: local
+
+networks:
+  marketpulse-network:
+    driver: bridge

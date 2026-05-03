@@ -1,0 +1,48 @@
+name: Sync to Hugging Face Hub
+
+on:
+  push:
+    branches: [main]  # Déclenche le déploiement à chaque push sur main
+  workflow_dispatch:   # Permet un déploiement manuel
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Verify HF_TOKEN is configured
+        run: |
+          if [ -z "${{ secrets.HF_TOKEN }}" ]; then
+            echo "❌ Error: HF_TOKEN secret not configured in GitHub"
+            echo "Setup: GitHub Settings → Secrets and variables → New repository secret"
+            exit 1
+          fi
+          echo "✅ HF_TOKEN is configured"
+
+      - name: Push to Hugging Face Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USERNAME: RashOps
+          HF_SPACE: marketpulse-ai
+        run: |
+          echo "🚀 Pushing to HF Spaces: $HF_USERNAME/$HF_SPACE"
+          git push --force https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE} HEAD:main
+          echo "✅ Push successful!"
+
+      - name: Deployment notification
+        if: success()
+        run: |
+          echo "🎉 Deployment successful!"
+          echo "🌐 Space URL: https://huggingface.co/spaces/RashOps/marketpulse-ai"
+          echo "📝 Note: Configure HF Secrets in Space Settings (not GitHub secrets)"
+
+      - name: Deployment failed notification
+        if: failure()
+        run: |
+          echo "❌ Deployment failed"
+          echo "Check GitHub Actions logs above"

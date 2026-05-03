@@ -1,0 +1,88 @@
+name: Daily Market Update
+
+on:
+  schedule:
+    - cron: '0 16 * * *'  # Quotidien à 16h UTC (après fermeture NYSE)
+  workflow_dispatch:
+
+jobs:
+  update-market-data:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v2
+      
+      - name: Install dependencies
+        run: uv sync
+      
+      - name: Run Data Collection
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          echo "Starting market data collection..."
+          uv run python src/ingestion/api_collector.py
+      
+      - name: Run Data Cleaning
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          echo "Cleaning collected data..."
+          uv run python src/processing/cleaner.py
+      
+      - name: Run Model Training
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          echo "Training market segmentation model..."
+          uv run python src/models/pipeline.py
+      
+      - name: Generate Cluster Profiles
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI || 'mongodb://localhost:27017' }}
+          DB_NAME: marketpulse
+        run: |
+          echo "Generating cluster profiles..."
+          uv run python src/models/profiling.py
+      
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-artifacts-${{ github.run_number }}
+          path: |
+            artifacts/
+            logs/
+          retention-days: 30
+      
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '❌ Daily market update failed. Check artifacts for details.'
+            })

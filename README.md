@@ -1,3 +1,13 @@
+---
+title: MarketPulse IA
+emoji: ⚡
+colorFrom: yellow
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # MarketPulse AI 📈
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/)
@@ -11,6 +21,7 @@ MarketPulse AI is a high-performance market segmentation engine built on unsuper
 
 The system is designed for professional environments, featuring strict typing, automated model versioning, and real-time performance monitoring.
 
+[🌐 Voir l'API](https://rashops-marketpulse-ai.hf.space/docs)
 [🚀 Voir la démo](https://www.rayhan-touboui.tech/decrypt-demos/marketpulse-ai)
 
 ---
